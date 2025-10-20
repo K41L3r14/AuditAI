@@ -1,0 +1,55 @@
+{
+  "version": "2025-10-20",
+  "items": [
+    {
+      "id": "INJECTION_SQL",
+      "title": "SQL Injection",
+      "cwe": "CWE-89",
+      "owasp": "A03:2021-Injection",
+      "severity": "High",
+      "languages": ["ts", "js", "py", "java"],
+      "description": "User input flows into a query without proper parameterization.",
+      "hints": ["prisma/raw", "string-concat in query", "sequelize.query"]
+    },
+    {
+      "id": "XSS",
+      "title": "Cross-Site Scripting",
+      "cwe": "CWE-79",
+      "owasp": "A03:2021-Injection",
+      "severity": "Medium",
+      "languages": ["ts", "js"],
+      "description": "Untrusted data rendered into HTML/DOM without output encoding.",
+      "hints": ["dangerouslySetInnerHTML", "innerHTML", "res.send(str)"]
+    },
+    {
+      "id": "PATH_TRAVERSAL",
+      "title": "Path Traversal",
+      "cwe": "CWE-22",
+      "owasp": "A05:2021-Security Misconfiguration",
+      "severity": "High",
+      "languages": ["ts", "js", "py"],
+      "description": "User-controlled path used to read/write files.",
+      "hints": ["req.query.path", "req.body.path", "fs.readFile", "path.join"]
+    },
+    {
+      "id": "HARDCODED_SECRET",
+      "title": "Hardcoded Secret",
+      "cwe": "CWE-798",
+      "owasp": "A02:2021-Cryptographic Failures",
+      "severity": "High",
+      "languages": ["*"],
+      "description": "API keys, tokens, passwords in source.",
+      "hints": ["apiKey", "secret", "token", "sk_live", "AKIA"]
+    },
+    {
+      "id": "AUTHZ_IDOR",
+      "title": "Broken Object Level Authorization (IDOR/BOLA)",
+      "cwe": "CWE-639",
+      "owasp": "API1:2019-BOLA",
+      "severity": "High",
+      "languages": ["ts", "js"],
+      "description": "Resource access missing authorization checks.",
+      "hints": ["req.user", "role", "isAdmin", "where:{ id:req.query.id }"]
+    }
+  ]
+}
