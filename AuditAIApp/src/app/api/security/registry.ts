@@ -7,7 +7,7 @@ let cache: TFindingRegistry | null = null;
 
 export async function loadRegistry(): Promise<TFindingRegistry> {
   if (cache) return cache;
-  const p = path.join(process.cwd(), "security", "allowed_findings.json");
+  const p = path.join(process.cwd(), "src", "app", "api", "security", "allowed_findings.json");
   const raw = await fs.readFile(p, "utf8");
   const json = JSON.parse(raw);
   cache = FindingRegistry.parse(json);
