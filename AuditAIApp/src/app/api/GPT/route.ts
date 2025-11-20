@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { selectFindings, loadRegistry } from "../security/registry";
 import OpenAI from "openai";
+import { normalizeFindings } from "../security/helpers";
 
 export const runtime = "nodejs"; // needed for fs and env access
 
@@ -69,19 +70,45 @@ export async function POST(req: NextRequest) {
       "Always include exact line numbers and a verbatim snippet.",
       "Prefer high precision over recall. If unsure, lower confidence or skip.",
       "Return ONLY a single JSON object.",
+      "The JSON MUST match this exact TypeScript type:",
+      "{",
+      '  "findings": {',
+      '    "id": string,',
+      '    "severity": "Low" | "Medium" | "High" | "Critical",',
+      '    "confidence": number,  // between 0 and 1',
+      '    "cwe"?: string,',
+      '    "owasp"?: string,',
+      '    "evidence": { "lines": number[]; "snippet": string },',
+      '    "explanation": string,',
+      '    "fix": {',
+      '      "patch": { "line"?: number; "insert_before"?: string; "replace_with"?: string }[],',
+      '      "notes"?: string',
+      '    }',
+      "  }[],",
+      '  "summary": {',
+      '    "file": string,',
+      '    "counts": {',
+      '      "total": number,',
+      '      "high": number,',
+      '      "medium": number,',
+      '      "low": number',
+      "    }",
+      "  }",
+      "}",
+      "",
     ].join(" ");
 
     const user = {
       task: "Analyze the following code file for ONLY the allowed findings.",
       file,
       allowed_findings: allowed.map(({ id, title, cwe, owasp, severity, description }) => ({
-        id,
-        title,
-        cwe,
-        owasp,
-        severity,
-        description,
-      })),
+          id,
+          title,
+          cwe,
+          owasp,
+          severity,
+          description,
+        })),
       output_contract: "ModelResponse JSON with { findings:[], summary:{...} }",
     };
 
@@ -119,10 +146,15 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("Validating model response...");
-    const validated = ModelResponse.parse(parsed); //needs fixing
-    console.log("Validation success! Returning response.");
-
-    return NextResponse.json({ ok: true, ...validated });
+    const validated = ModelResponse.parse(parsed);
+    const normalizedFindings = normalizeFindings( file.content,
+      validated.findings
+    );
+    const normalizedResponse: z.infer<typeof ModelResponse> = {
+      ...validated,
+      findings: normalizedFindings,
+    };
+    return NextResponse.json({ ok: true, ...normalizedResponse });
   } catch (err: unknown) {
     console.error("=== ERROR in /api/GPT === 127");
     console.error(err);
