@@ -1,0 +1,26 @@
+[
+  {
+    "id": "xss-basic",
+    "description": "Simple DOM sink should trigger the XSS finding.",
+    "file": {
+      "path": "src/app/codeFiles_With_Vuln_Examples/xss.ts",
+      "language": "ts"
+    },
+    "expected_findings": [
+      {
+        "id": "XSS",
+        "lines": [4, 5, 6],
+        "severity": "Medium"
+      }
+    ]
+  },
+  {
+    "id": "safe-template",
+    "description": "Harmless string formatting should not yield findings.",
+    "file": {
+      "path": "src/app/codeFiles_With_Vuln_Examples/safe.ts",
+      "language": "ts"
+    },
+    "expected_findings": []
+  }
+]
