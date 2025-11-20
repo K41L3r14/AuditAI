@@ -78,7 +78,7 @@
       "cwe": "CWE-601",
       "owasp": "A01:2021-Broken Access Control",
       "severity": "Medium",
-      "languages": ["ts", "js"],
+      "languages": ["ts", "js", "py"],
       "description": "User-controlled URL sent to redirect() without validation.",
       "hints": ["res.redirect(req.query.url)"]
     },
@@ -191,6 +191,35 @@
       "languages": ["ts", "js"],
       "description": "Uploaded files not validated for type, size, or content.",
       "hints": ["multer", "no MIME check", "direct disk write"]
+    },
+    {
+      "id": "CODE_INJECTION",
+      "title": "Code Injection",
+      "cwe": "CWE-94",
+      "owasp": "A03:2021-Injection",
+      "severity": "High",
+      "languages": ["ts", "js", "py", "java"],
+      "description": "User-controlled data is executed as code at runtime through dynamic evaluators, script engines, template execution, VM execution, or interpreter commands.",
+      "hints": [
+        "eval(",
+        "new Function(",
+        "Function(",
+        "setImmediate(userInput)",
+        "setTimeout(userInput)",
+        "vm.runInContext",
+        "vm.runInNewContext",
+        "vm.compileFunction",
+        "templateEngine.render(userInput)",
+        "handlebars.compile(userInput)",
+        "ejs.render(userData)",
+        "python exec(",
+        "python eval(",
+        "subprocess.call(userInput)",
+        "Runtime.getRuntime().exec(",
+        "javax.script.ScriptEngine eval",
+        "command injection into interpreters"
+      ]
     }
+
   ]
 }

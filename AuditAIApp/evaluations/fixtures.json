@@ -22,5 +22,35 @@
       "language": "ts"
     },
     "expected_findings": []
+  },
+  {
+    "id": "dynamic-eval",
+    "description": "Python eval() on user-controlled input should be treated as arbitrary code execution.",
+    "file": {
+      "path": "src/app/codeFiles_With_Vuln_Examples/dynamic-code-injection.py",
+      "language": "py"
+    },
+    "expected_findings": [
+      {
+        "id": "INSECURE_DESERIALIZATION",
+        "lines": [5, 6],
+        "severity": "High"
+      }
+    ]
+  },
+  {
+    "id": "open-redirect",
+    "description": "Flask redirect uses unvalidated URL parameter.",
+    "file": {
+      "path": "src/app/codeFiles_With_Vuln_Examples/http-redir-forging.py",
+      "language": "py"
+    },
+    "expected_findings": [
+      {
+        "id": "UNVALIDATED_REDIRECT",
+        "lines": [12, 13, 14, 15],
+        "severity": "Medium"
+      }
+    ]
   }
 ]
