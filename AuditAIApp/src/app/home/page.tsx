@@ -4,7 +4,7 @@ import { Card, CardContent } from "../components/card";
 import { Button } from "../components/button";
 import { Upload, FileCode } from "../components/icons";
 import { ApiResponse, ApiSuccess, ModelChoice } from "../api/security/types";
-import { guessLanguageFromName } from "../api/security/helpers";
+import { guessLanguageFromName, normalizeFindings } from "../api/security/helpers";
 import { CodePanel, SummaryPanel } from "./panels";
 import { exportReportPdf } from "./report";
 import "./home.css";
@@ -57,7 +57,9 @@ export default function Home() {
         setApiData(null);
         return;
       }
-      setApiData(json as ApiSuccess);
+      const success = json as ApiSuccess;
+      const findings = normalizeFindings(fileContent, success.findings);
+      setApiData({ ...success, findings });
     } catch (err: unknown) {
       console.error(err);
       const message = err instanceof Error ? err.message : "Unknown error";

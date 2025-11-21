@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { selectFindings, loadRegistry } from "../security/registry";
+import { normalizeFindings } from "../security/helpers";
 import OpenAI from "openai";
 import { ModelResponse, type TModelFinding } from "./model";
 
@@ -165,9 +166,12 @@ export async function POST(req: NextRequest) {
     const normalized = normalizeModelResponse(parsed, file.path);
     console.log("Validating model response...");
     const validated = ModelResponse.parse(normalized);
-    console.log("Validation success! Returning response.");
+    console.log("Validation success! Realigning with source file...");
+    const sourceContent = typeof file?.content === "string" ? file.content : "";
+    const alignedFindings = normalizeFindings(sourceContent, validated.findings);
+    console.log("Returning normalized findings.");
 
-    return NextResponse.json({ ok: true, ...validated });
+    return NextResponse.json({ ok: true, findings: alignedFindings, summary: validated.summary });
   } catch (err: unknown) {
     console.error("=== ERROR in /api/GPT === 127");
     console.error(err);

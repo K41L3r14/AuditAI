@@ -34,6 +34,75 @@ export function severityUnderline(sev: FindingSeverity): string {
   }
 }
 
+const LINE_SPLIT = /\r?\n/;
+
+function normalizeForMatch(value: string): string {
+  return value.replace(/\r?\n/g, "").replace(/\s+/g, "").toLowerCase();
+}
+
+function includesLoosely(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  if (haystack.includes(needle)) return true;
+  const compactHaystack = normalizeForMatch(haystack);
+  const compactNeedle = normalizeForMatch(needle);
+  if (!compactHaystack || !compactNeedle) return false;
+  return compactHaystack.includes(compactNeedle);
+}
+
+function getExpectedLine(finding: Finding): number | null {
+  const evidenceLines = Array.isArray(finding.evidence.lines)
+    ? finding.evidence.lines
+    : [];
+  if (evidenceLines.length > 0 && typeof evidenceLines[0] === "number") {
+    return evidenceLines[0];
+  }
+  const patchLine = finding.fix?.patch?.find(
+    (p) => typeof p.line === "number"
+  )?.line;
+  return typeof patchLine === "number" ? patchLine : null;
+}
+
+function collectSnippetCandidates(
+  fileLines: string[],
+  snippetLines: string[]
+): number[] {
+  const meaningful = snippetLines.map((l) => l.trim()).filter(Boolean);
+  if (meaningful.length === 0) return [];
+
+  const candidates: number[] = [];
+
+  if (meaningful.length > 1) {
+    for (let i = 0; i <= fileLines.length - meaningful.length; i++) {
+      let matches = true;
+      for (let j = 0; j < meaningful.length; j++) {
+        if (!includesLoosely(fileLines[i + j], meaningful[j])) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        candidates.push(i);
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    let signature = meaningful[0];
+    for (const line of meaningful) {
+      if (line.length > signature.length) {
+        signature = line;
+      }
+    }
+    for (let i = 0; i < fileLines.length; i++) {
+      if (includesLoosely(fileLines[i], signature)) {
+        candidates.push(i);
+      }
+    }
+  }
+
+  return candidates;
+}
+
 export type HighlightParts = {
   before: string;
   match: string | null;
@@ -41,35 +110,56 @@ export type HighlightParts = {
   underlineClass: string | null;
 };
 
-export function normalizeFindingLines(
+export function normalizeFindingLines<T extends Finding>(
   fileContent: string,
-  finding: Finding
-): Finding {
+  finding: T
+): T {
   const rawSnippet = finding.evidence?.snippet ?? "";
   const snippet = rawSnippet.trim();
   if (!snippet) return finding;
 
-  const fileLines = fileContent.split(/\r?\n/);
-  const snippetLines = snippet.split(/\r?\n/);
+  const fileLines = fileContent.split(LINE_SPLIT);
+  const snippetLines = snippet.split(LINE_SPLIT);
+  const snippetCount = Math.max(
+    snippetLines.map((line) => line.trim()).filter(Boolean).length,
+    1
+  );
 
-  const sig = snippetLines.find((l) => l.trim().length > 0);
-  if (!sig) return finding;
+  const candidates = collectSnippetCandidates(fileLines, snippetLines);
+  const expectedLine = getExpectedLine(finding);
 
-  const sigTrimmed = sig.trim();
-  let baseIndex = -1; 
-  for (let i = 0; i < fileLines.length; i++) {
-    if (fileLines[i].includes(sigTrimmed)) {
-      baseIndex = i;
-      break;
+  if (candidates.length === 0) {
+    if (typeof expectedLine === "number") {
+      const fallbackLines: number[] = [];
+      for (let i = 0; i < snippetCount; i++) {
+        fallbackLines.push(expectedLine + i);
+      }
+      return {
+        ...finding,
+        evidence: {
+          ...finding.evidence,
+          lines: fallbackLines,
+        },
+      };
     }
-  }
-
-  if (baseIndex === -1) {
     return finding;
   }
 
+  let baseIndex = candidates[0];
+  if (typeof expectedLine === "number") {
+    const expectedIdx = Math.max(expectedLine - 1, 0);
+    let bestDiff = Math.abs(baseIndex - expectedIdx);
+    for (const idx of candidates) {
+      const diff = Math.abs(idx - expectedIdx);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        baseIndex = idx;
+      }
+    }
+  }
+
   const newLines: number[] = [];
-  for (let i = 0; i < snippetLines.length; i++) {
+  for (let i = 0; i < snippetCount; i++) {
     const ln = baseIndex + 1 + i;
     if (ln <= fileLines.length) {
       newLines.push(ln);
@@ -82,13 +172,13 @@ export function normalizeFindingLines(
       ...finding.evidence,
       lines: newLines,
     },
-  };
+  } as T;
 }
 
-export function normalizeFindings(
+export function normalizeFindings<T extends Finding>(
   fileContent: string,
-  findings: Finding[]
-): Finding[] {
+  findings: T[]
+): T[] {
   return findings.map((f) => normalizeFindingLines(fileContent, f));
 }
 

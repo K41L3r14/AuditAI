@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { selectFindings, loadRegistry } from "../security/registry";
+import { normalizeFindings } from "../security/helpers";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const runtime = "nodejs"; // needed for fs and env access
@@ -162,6 +163,28 @@ export async function POST(req: NextRequest) {
     const allowed = await selectFindings({ language: file.language, max: 12 });
     console.log("Allowed findings loaded:", allowed.length);
 
+    const fallbackFinding = {
+      id: "MODEL_GUESS",
+      title: "Model proposed finding (fallback)",
+      cwe: undefined,
+      owasp: undefined,
+      severity: "Medium",
+      description:
+        "Use when the observed vulnerability is not in allowed_findings. Still supply lines, snippet, explanation, and remediation steps.",
+    };
+
+    const allowedForPrompt = [
+      ...allowed.map(({ id, title, cwe, owasp, severity, description }) => ({
+        id,
+        title,
+        cwe,
+        owasp,
+        severity,
+        description,
+      })),
+      fallbackFinding,
+    ];
+
     await loadRegistry();
     console.log("Registry loaded.");
 
@@ -170,23 +193,17 @@ export async function POST(req: NextRequest) {
     const systemMessage = [
       "You are a security code auditor.",
       "Only report findings whose 'id' exists in allowed_findings.",
-      "If nothing matches, return an empty 'findings' array.",
+      "If nothing matches the allowed list, emit a MODEL_GUESS finding that fully describes the vulnerability (id must be MODEL_GUESS).",
       "Always include exact line numbers and a verbatim snippet.",
       "Prefer high precision over recall. If unsure, lower confidence or skip.",
-      "Return ONLY a single JSON object.",
+      "Return ONLY a single JSON object that matches the ModelResponse contract.",
+      "Every finding needs an explanation referencing the snippet and remediation via fix.patch and/or fix.notes.",
     ].join(" ");
 
     const userContent = {
       task: "Analyze the following code file for ONLY the allowed findings.",
       file,
-      allowed_findings: allowed.map(({ id, title, cwe, owasp, severity, description }) => ({
-          id,
-          title,
-          cwe,
-          owasp,
-          severity,
-          description,
-        })),
+      allowed_findings: allowedForPrompt,
       output_contract: "ModelResponse JSON with { findings:[], summary:{...} }",
     };
 
@@ -226,11 +243,11 @@ export async function POST(req: NextRequest) {
     console.log("Validating model response...");
     const normalized = normalizeModelOutput(parsed as RawFinding);
     const validated = ModelResponse.parse(normalized); //needs fixing
-    console.log("Validation success! Returning response.");
+    console.log("Validation success! Realigning with source file...");
+    const sourceContent = typeof file?.content === "string" ? file.content : "";
+    const alignedFindings = normalizeFindings(sourceContent, validated.findings);
 
-    console.log(NextResponse.json({ ok: true, ...validated }));
-
-    return NextResponse.json({ ok: true, ...validated });
+    return NextResponse.json({ ok: true, findings: alignedFindings, summary: validated.summary });
   } catch (err: unknown) {
     console.error("=== ERROR in /api/Claude ===");
     console.error(err);
