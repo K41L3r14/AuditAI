@@ -188,10 +188,17 @@
 }
 
 /* Tooltip */
-.tooltip {
+.tooltip-wrapper {
   position: fixed;
   width: min(420px, 90vw);
-  max-height: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.tooltip {
+  width: 100%;
   background-color: #020617;
   border: 1px solid #374151;
   color: #e5e7eb;
@@ -199,9 +206,12 @@
   border-radius: 12px;
   font-size: 0.8rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  overflow-y: auto;
   pointer-events: auto;
+  margin-bottom: 12px;
+}
+
+.tooltip:last-child {
+  margin-bottom: 0;
 }
 
 .tooltip-header {

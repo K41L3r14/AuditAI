@@ -21,17 +21,9 @@ export function PatchSuggestions({ fix }: { fix: Finding["fix"] }) {
   );
 }
 
-export function FindingTooltip({
-  finding,
-  style,
-  onMouseLeave,
-}: {
-  finding: Finding;
-  style?: React.CSSProperties;
-  onMouseLeave?: () => void;
-}) {
+export function FindingTooltip({ finding }: { finding: Finding }) {
   return (
-    <div className="tooltip" style={style} onMouseLeave={onMouseLeave}>
+    <div className="tooltip">
       <div className="tooltip-header">
         <Info />
         <span className="tooltip-title">
@@ -62,21 +54,14 @@ type CodePanelProps = { fileName: string | undefined; fileContent: string; apiDa
 
 export function CodePanel({ fileName, fileContent, apiData }: CodePanelProps) {
   const [tooltipData, setTooltipData] = useState<{
-    finding: Finding;
+    findings: Finding[];
     top: number;
     left: number;
     locked: boolean;
   } | null>(null);
   const codeLines = fileContent ? fileContent.split("\n") : [];
 
-  function handleLineHover(
-    finding: Finding | undefined,
-    element: HTMLDivElement
-  ) {
-    if (!finding || tooltipData?.locked) {
-      if (!tooltipData?.locked) setTooltipData(null);
-      return;
-    }
+  function computePosition(element: HTMLDivElement) {
     const rect = element.getBoundingClientRect();
     const offsetY = 8;
     const offsetX = 4;
@@ -89,31 +74,33 @@ export function CodePanel({ fileName, fileContent, apiData }: CodePanelProps) {
       left = Math.min(maxLeft, Math.max(8, left));
     }
     if (viewportHeight) {
-      top = Math.min(viewportHeight - 24, Math.max(rect.top + offsetY, top));
+      top = Math.min(viewportHeight - 40, Math.max(rect.top + offsetY, top));
     }
-    setTooltipData({ finding, top, left, locked: false });
+    return { top, left };
+  }
+
+  function handleLineHover(
+    findings: Finding[],
+    element: HTMLDivElement
+  ) {
+    if (tooltipData?.locked) {
+      return;
+    }
+    if (!findings || findings.length === 0) {
+      setTooltipData(null);
+      return;
+    }
+    const pos = computePosition(element);
+    setTooltipData({ findings, ...pos, locked: false });
   }
 
   function handleLineClick(
-    finding: Finding | undefined,
+    findings: Finding[],
     element: HTMLDivElement
   ) {
-    if (!finding) return;
-    const rect = element.getBoundingClientRect();
-    const offsetY = 8;
-    const offsetX = 4;
-    let top = rect.bottom + offsetY;
-    let left = rect.left + offsetX;
-    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
-    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
-    if (viewportWidth) {
-      const maxLeft = Math.max(8, viewportWidth - 460);
-      left = Math.min(maxLeft, Math.max(8, left));
-    }
-    if (viewportHeight) {
-      top = Math.min(viewportHeight - 24, Math.max(rect.top + offsetY, top));
-    }
-    setTooltipData({ finding, top, left, locked: true });
+    if (!findings || findings.length === 0) return;
+    const pos = computePosition(element);
+    setTooltipData({ findings, ...pos, locked: true });
   }
 
   function handleLineLeave() {
@@ -150,10 +137,10 @@ export function CodePanel({ fileName, fileContent, apiData }: CodePanelProps) {
               <div
                 key={idx}
                 className="code-line"
-                onMouseEnter={(event) => handleLineHover(primaryFinding, event.currentTarget)}
-                onMouseMove={(event) => handleLineHover(primaryFinding, event.currentTarget)}
+                onMouseEnter={(event) => handleLineHover(lineFindings, event.currentTarget)}
+                onMouseMove={(event) => handleLineHover(lineFindings, event.currentTarget)}
                 onMouseLeave={handleLineLeave}
-                onClick={(event) => handleLineClick(primaryFinding, event.currentTarget)}
+                onClick={(event) => handleLineClick(lineFindings, event.currentTarget)}
               >
                 <span className="code-line-number">{lineNo}</span>
                 <code className="code-line-text">
@@ -172,11 +159,15 @@ export function CodePanel({ fileName, fileContent, apiData }: CodePanelProps) {
           })}
         </pre>
         {tooltipData && (
-          <FindingTooltip
-            finding={tooltipData.finding}
+          <div
+            className="tooltip-wrapper"
             style={{ top: tooltipData.top, left: tooltipData.left }}
             onMouseLeave={handleTooltipLeave}
-          />
+          >
+            {tooltipData.findings.map((finding, idx) => (
+              <FindingTooltip key={`${finding.id}-${idx}`} finding={finding} />
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
