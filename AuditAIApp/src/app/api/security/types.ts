@@ -32,11 +32,14 @@ export type Summary = {
   counts: SummaryCounts;
 };
 
-export type ApiSuccess = {
-  ok: true;
+export type AnalysisResult = {
   findings: Finding[];
   summary: Summary;
 };
+
+export type ApiSuccess = {
+  ok: true;
+} & AnalysisResult;
 
 export type ApiError = {
   ok: false;
@@ -45,6 +48,15 @@ export type ApiError = {
   raw?: string;
 };
 
-export type ApiResponse = ApiSuccess | ApiError;
+export type CompareModel = "OpenAI" | "Claude";
 
-export type ModelChoice = "OpenAI" | "Claude" | "Other";
+export type ModelRunResult = ApiSuccess | ApiError;
+
+export type ComparisonSuccess = {
+  ok: true;
+  models: Record<CompareModel, ModelRunResult>;
+};
+
+export type ApiResponse = ApiSuccess | ApiError | ComparisonSuccess;
+
+export type ModelChoice = "OpenAI" | "Claude" | "Other" | "Both";

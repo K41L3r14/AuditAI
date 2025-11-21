@@ -114,11 +114,52 @@ export function normalizeFindingLines<T extends Finding>(
   fileContent: string,
   finding: T
 ): T {
-  const rawSnippet = finding.evidence?.snippet ?? "";
-  const snippet = rawSnippet.trim();
-  if (!snippet) return finding;
-
+  const normalizedFile = fileContent.replace(/\r\n/g, "\n");
   const fileLines = fileContent.split(LINE_SPLIT);
+  const expectedLine = getExpectedLine(finding);
+  const rawSnippet = finding.evidence?.snippet ?? "";
+  let snippet = rawSnippet.trim();
+  let workingFinding: T = finding;
+
+  const directLines =
+    findLinesByDirectMatch(normalizedFile, rawSnippet) ??
+    findLinesByDirectMatch(normalizedFile, snippet);
+  if (directLines && directLines.length > 0) {
+    return {
+      ...finding,
+      evidence: {
+        ...finding.evidence,
+        lines: directLines,
+      },
+    } as T;
+  }
+
+  if (!snippet) {
+    const derived = deriveSnippetFromLines(fileLines, finding);
+    if (derived) {
+      snippet = derived.trim();
+      workingFinding = {
+        ...finding,
+        evidence: {
+          ...finding.evidence,
+          snippet: derived,
+        },
+      };
+    } else if (typeof expectedLine === "number" && expectedLine > 0) {
+      const fallbackSnippet = fileLines[expectedLine - 1] ?? "";
+      return {
+        ...workingFinding,
+        evidence: {
+          ...workingFinding.evidence,
+          snippet: fallbackSnippet,
+          lines: [expectedLine],
+        },
+      } as T;
+    } else {
+      return workingFinding;
+    }
+  }
+
   const snippetLines = snippet.split(LINE_SPLIT);
   const snippetCount = Math.max(
     snippetLines.map((line) => line.trim()).filter(Boolean).length,
@@ -126,7 +167,6 @@ export function normalizeFindingLines<T extends Finding>(
   );
 
   const candidates = collectSnippetCandidates(fileLines, snippetLines);
-  const expectedLine = getExpectedLine(finding);
 
   if (candidates.length === 0) {
     if (typeof expectedLine === "number") {
@@ -135,14 +175,14 @@ export function normalizeFindingLines<T extends Finding>(
         fallbackLines.push(expectedLine + i);
       }
       return {
-        ...finding,
+        ...workingFinding,
         evidence: {
-          ...finding.evidence,
+          ...workingFinding.evidence,
           lines: fallbackLines,
         },
       };
     }
-    return finding;
+    return workingFinding;
   }
 
   let baseIndex = candidates[0];
@@ -167,9 +207,9 @@ export function normalizeFindingLines<T extends Finding>(
   }
 
   return {
-    ...finding,
+    ...workingFinding,
     evidence: {
-      ...finding.evidence,
+      ...workingFinding.evidence,
       lines: newLines,
     },
   } as T;
@@ -279,4 +319,34 @@ export function findingsForLine(
       return trimmed.length >= 2 && rawLine.includes(trimmed);
     });
   });
+}
+
+function deriveSnippetFromLines<T extends Finding>(
+  fileLines: string[],
+  finding: T
+): string | null {
+  const lineNumbers = Array.isArray(finding.evidence.lines)
+    ? finding.evidence.lines
+    : [];
+  if (lineNumbers.length === 0) return null;
+  const collected = lineNumbers
+    .map((ln) => fileLines[ln - 1] ?? "")
+    .join("\n")
+    .trim();
+  return collected.length > 0 ? collected : null;
+}
+
+function findLinesByDirectMatch(fileContent: string, snippet: string): number[] | null {
+  if (!snippet || snippet.length === 0) return null;
+  const normalizedSnippet = snippet.replace(/\r\n/g, "\n");
+  const idx = fileContent.indexOf(normalizedSnippet);
+  if (idx === -1) return null;
+  const prefix = fileContent.slice(0, idx);
+  const startLine = prefix.length === 0 ? 1 : prefix.split("\n").length;
+  const snippetLineCount = Math.max(normalizedSnippet.split("\n").length, 1);
+  const lines: number[] = [];
+  for (let i = 0; i < snippetLineCount; i++) {
+    lines.push(startLine + i);
+  }
+  return lines;
 }
