@@ -20,6 +20,24 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## GPT endpoint metrics
+
+Use the `npm run metrics` script to score the `/api/GPT` endpoint against the fixtures in `evaluations/fixtures.json`.
+
+1. Ensure `OPENAI_API_KEY` is set and run `npm run dev` so the endpoint is reachable on `http://localhost:3000`.
+2. In a separate terminal run `npm run metrics`. The script will:
+   - send each fixture file (see `src/app/codeFiles_With_Vuln_Examples/`) to `/api/GPT`,
+   - validate responses with the shared Zod schema,
+   - compare results with the expected findings, and
+   - print per-fixture precision/recall plus aggregate Precision/Recall/F1.
+
+Environment overrides:
+
+- `GPT_EVAL_ENDPOINT` - point to a deployed endpoint instead of `http://localhost:3000/api/GPT`.
+- `GPT_EVAL_FIXTURES` - path to a custom fixtures JSON file.
+
+Add more scenarios by appending to `evaluations/fixtures.json` (each entry defines the file path, language, and expected findings).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
