@@ -51,6 +51,10 @@ interface RawFinding {
   owasp?: string;
   line?: number;
   snippet?: string;
+  evidence?: {
+    lines?: number[];
+    snippet?: string;
+  };
   explanation?: string;
   description?: string;
   file?: string;
@@ -75,22 +79,50 @@ function mapSeverity(raw: string): z.infer<typeof ModelFinding>["severity"] {
 function normalizeModelOutput(raw: RawFinding): z.infer<typeof ModelResponse> {
   const findings = Array.isArray(raw.findings) ? raw.findings : [];
 
-  const mappedFindings = findings.map((f: RawFinding) => ({
-    id: f.id ?? "UNKNOWN_ID",
-    severity: mapSeverity(f.severity ?? "Low"),
-    confidence: typeof f.confidence === "number" ? f.confidence : 1,
-    cwe: f.cwe,
-    owasp: f.owasp,
-    evidence: {
-      lines: f.line != null ? [Number(f.line)] : [],
-      snippet: f.snippet ?? "",
-    },
-    explanation: f.explanation ?? f.description ?? "",
-    fix: {
-      patch: [],
-      notes: undefined,
-    },
-  }));
+  const mappedFindings = findings.map((f) => {
+    let lines: number[] = [];
+    if (Array.isArray(f.evidence?.lines) && f.evidence.lines.length > 0) {
+      lines = f.evidence.lines.map(Number);
+    } else if (f.line != null) {
+      lines = [Number(f.line)];
+    }
+
+    const snippet =
+      f.evidence?.snippet ??
+      f.snippet ??
+      "";
+
+    const severity = mapSeverity(f.severity ?? "Low");
+    const confidence =
+      typeof f.confidence === "number" ? f.confidence : 1;
+
+    return {
+      id: f.id ?? "UNKNOWN_ID",
+      severity,
+      confidence,
+      cwe: f.cwe,
+      owasp: f.owasp,
+      evidence: {
+        lines,
+        snippet,
+      },
+      explanation: f.explanation ?? f.description ?? "",
+      fix: {
+        patch: [],
+        notes: undefined,
+      },
+    }});
+    
+  const total = mappedFindings.length;
+  const high = mappedFindings.filter(
+    (f) => f.severity === "High" || f.severity === "Critical"
+  ).length;
+  const medium = mappedFindings.filter(
+    (f) => f.severity === "Medium"
+  ).length;
+  const low = mappedFindings.filter(
+    (f) => f.severity === "Low"
+  ).length;
 
   const summary = raw.summary ?? {};
 
@@ -102,12 +134,10 @@ function normalizeModelOutput(raw: RawFinding): z.infer<typeof ModelResponse> {
         (findings[0]?.file as string | undefined) ??
         "unknown",
       counts: {
-        total:
-          summary.total_findings ??
-          (Array.isArray(findings) ? findings.length : 0),
-        high: summary.high_severity ?? 0,
-        medium: summary.medium_severity ?? 0,
-        low: summary.low_severity ?? 0,
+        total: summary.total_findings ?? total,
+        high: summary.high_severity ?? high,
+        medium: summary.medium_severity ?? medium,
+        low: summary.low_severity ?? low,
       },
     },
   };
@@ -150,13 +180,13 @@ export async function POST(req: NextRequest) {
       task: "Analyze the following code file for ONLY the allowed findings.",
       file,
       allowed_findings: allowed.map(({ id, title, cwe, owasp, severity, description }) => ({
-        id,
-        title,
-        cwe,
-        owasp,
-        severity,
-        description,
-      })),
+          id,
+          title,
+          cwe,
+          owasp,
+          severity,
+          description,
+        })),
       output_contract: "ModelResponse JSON with { findings:[], summary:{...} }",
     };
 
@@ -194,7 +224,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("Validating model response...");
-    const normalized = normalizeModelOutput(parsed as RawFinding);  
+    const normalized = normalizeModelOutput(parsed as RawFinding);
     const validated = ModelResponse.parse(normalized); //needs fixing
     console.log("Validation success! Returning response.");
 
