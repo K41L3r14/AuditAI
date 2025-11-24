@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { selectFindings, loadRegistry } from "../security/registry";
-import { HfInference } from '@huggingface/inference';
+import { InferenceClient } from '@huggingface/inference';
 
 export const runtime = "nodejs";
 
 // Initialize Hugging Face client
-const client = new HfInference(process.env.HUGGINGFACE_API_KEY);
+const client = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
 
 export async function POST(req: NextRequest) {
   let body: any;
