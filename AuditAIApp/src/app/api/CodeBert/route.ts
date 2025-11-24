@@ -1,99 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { selectFindings, loadRegistry } from "../security/registry";
+import { HfInference } from '@huggingface/inference';
 
 export const runtime = "nodejs";
 
-const ModelFinding = z.object({
-  id: z.string(),
-  severity: z.enum(["Low", "Medium", "High", "Critical"]),
-  confidence: z.number().min(0).max(1),
-  cwe: z.string().optional(),
-  owasp: z.string().optional(),
-  evidence: z.object({
-    lines: z.array(z.number()),
-    snippet: z.string(),
-  }),
-  explanation: z.string(),
-  fix: z.object({
-    patch: z.array(
-      z.object({
-        line: z.number().optional(),
-        insert_before: z.string().optional(),
-        replace_with: z.string().optional(),
-      })
-    ),
-    notes: z.string().optional(),
-  }),
-});
-
-const ModelResponse = z.object({
-  findings: z.array(ModelFinding),
-  summary: z.object({
-    file: z.string(),
-    counts: z.object({
-      total: z.number(),
-      high: z.number(),
-      medium: z.number(),
-      low: z.number(),
-    }),
-  }),
-});
-
-async function callHuggingFaceAPI(prompt: string) {
-  const HF_API_KEY = process.env.HUGGINGFACE_API_KEY!;
-  const HF_API_URL = 'https://api-inference.huggingface.co/models/microsoft/codebert-base';
-
-  try {
-    const response = await fetch(HF_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_length: 800,
-          temperature: 0.1,
-          do_sample: false,
-          return_full_text: false
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Hugging Face API error: ${response.status} ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Hugging Face API call failed:', error);
-    throw error;
-  }
-}
+// Initialize Hugging Face client
+const client = new HfInference(process.env.HUGGINGFACE_API_KEY);
 
 export async function POST(req: NextRequest) {
-  let body: any = undefined;
+  let body: any;
+
   try {
-    console.log("=== /api/Codebert request started ===");
+    console.log("=== /api/CodeBert request started ===");
 
-    body = await req.json(); // assign to outer-scoped variable so it's accessible in catch block
-    console.log("Incoming body keys:", Object.keys(body));
+    body = await req.json();
     const { file } = body as { file: { path: string; language: string; content: string } };
-    console.log("File path:", file?.path);
-    console.log("Language:", file?.language);
-    console.log("Content length:", file?.content?.length ?? 0);
+    
+    // Truncate code content to stay within limits
+    let safeContent = file.content;
+    if (safeContent.length > 500) {
+      safeContent = safeContent.substring(0, 500) + "\n// ... [truncated]";
+      console.log("Code truncated from", file.content.length, "to 500 chars");
+    }
 
-    const allowed = await selectFindings({ language: file.language, max: 12 });
+    const allowed = await selectFindings({ 
+      language: file.language, 
+      max: 6
+    });
     console.log("Allowed findings loaded:", allowed.length);
 
     await loadRegistry();
-    console.log("Registry loaded.");
 
-    console.log("Hugging Face key loaded?", !!process.env.HUGGINGFACE_API_KEY);
-
-    const system = [
+    // System prompt
+    const systemPrompt = [
       "You are a security code auditor.",
       "Only report findings whose 'id' exists in allowed_findings.",
       "If nothing matches, return an empty 'findings' array.",
@@ -102,73 +41,99 @@ export async function POST(req: NextRequest) {
       "Return ONLY a single JSON object.",
     ].join(" ");
 
-    const user = {
-      task: "Analyze the following code file for ONLY the allowed findings.",
-      file,
-      allowed_findings: allowed.map(({ id, title, cwe, owasp, severity, description }) => ({
-        id,
-        title,
-        cwe,
-        owasp,
-        severity,
-        description,
+    // User message with code and findings
+    const userContent = {
+      task: "Analyze this code for security vulnerabilities and return findings in the specified JSON format.",
+      file: {
+        path: file.path,
+        language: file.language,
+        content: safeContent
+      },
+      allowed_findings: allowed.map(({ id, title, severity }) => ({
+        id, title, severity
       })),
-      output_contract: "ModelResponse JSON with { findings:[], summary:{...} }",
+      output_format: {
+        findings: [{
+          id: "string",
+          severity: "Low|Medium|High|Critical", 
+          confidence: "number 0-1",
+          evidence: {
+            lines: "number[]",
+            snippet: "string"
+          },
+          explanation: "string",
+          fix: {
+            patch: [{
+              line: "number",
+              replace_with: "string"
+            }]
+          }
+        }],
+        summary: {
+          file: "string",
+          counts: {
+            total: "number",
+            high: "number",
+            medium: "number", 
+            low: "number"
+          }
+        }
+      }
     };
 
-    const prompt = `SYSTEM: ${system}\n\nUSER: ${JSON.stringify(user, null, 2)}`;
-
-    console.log("Sending prompt to Hugging Face...");
+    console.log("Sending to Hugging Face...");
     
-    const hfResponse = await callHuggingFaceAPI(prompt);
-    console.log("Hugging Face response received:", hfResponse);
+    // Use InferenceClient for chat completion
+    const messages = [
+      {
+        role: "system" as const,
+        content: systemPrompt
+      },
+      {
+        role: "user" as const, 
+        content: JSON.stringify(userContent, null, 2)
+      }
+    ];
 
-    let generatedText;
-    if (Array.isArray(hfResponse)) {
-      generatedText = hfResponse[0]?.generated_text;
-    } else {
-      generatedText = hfResponse.generated_text;
-    }
+    const chatCompletion = await client.chatCompletion({
+      model: "meta-llama/Meta-Llama-3-8B-Instruct",
+      messages: messages,
+      max_tokens: 500,
+      temperature: 0.1,
+    });
 
-    console.log("Generated text length:", generatedText?.length ?? 0);
-    console.log("Raw model output (first 500 chars):", generatedText?.slice(0, 500));
+    console.log("Hugging Face response received");
+    
+    // Extract the content
+    const generatedText = chatCompletion.choices[0]?.message?.content || '';
+    console.log("Generated text length:", generatedText.length);
+
+    let responseData: any;
 
     if (!generatedText) {
       console.warn("No generated text from Hugging Face");
-      return NextResponse.json({
-        ok: true,
+      responseData = {
         findings: [],
         summary: {
           file: file.path,
           counts: { total: 0, high: 0, medium: 0, low: 0 }
         }
-      });
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(generatedText);
-      console.log("Direct JSON parse successful");
-    } catch (parseErr) {
-      console.log("Direct parse failed, trying to extract JSON from text...");
-      const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          parsed = JSON.parse(jsonMatch[0]);
+      };
+    } else {
+      console.log("Raw output (first 200 chars):", generatedText.substring(0, 200));
+      
+      try {
+        // Try to extract JSON from the response
+        const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          responseData = JSON.parse(jsonMatch[0]);
           console.log("JSON extraction successful");
-        } catch (extractErr) {
-          console.error("JSON extraction failed:", extractErr);
-          parsed = {
-            findings: [],
-            summary: {
-              file: file.path,
-              counts: { total: 0, high: 0, medium: 0, low: 0 }
-            }
-          };
+        } else {
+          throw new Error("No JSON found in response");
         }
-      } else {
-        console.error("No JSON object found in response");
-        parsed = {
+      } catch (parseError) {
+        console.error("JSON parsing failed, using empty findings");
+        responseData = {
           findings: [],
           summary: {
             file: file.path,
@@ -178,16 +143,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log("Validating model response...");
-    const validated = ModelResponse.parse(parsed);
-    console.log("Validation success! Returning response.");
+    console.log("Findings count:", responseData.findings?.length || 0);
 
-    return NextResponse.json({ ok: true, ...validated });
+    return NextResponse.json({ ok: true, ...responseData });
+
   } catch (err: unknown) {
-    console.error("=== ERROR in /api/GPT ===");
+    console.error("=== ERROR in /api/CodeBert ===");
     console.error(err);
     
-    // Now body is accessible here
     const filePath = body?.file?.path || "unknown";
     
     return NextResponse.json(
