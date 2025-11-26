@@ -20,6 +20,24 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## OpenAI GPT endpoint (API)
+
+- Path: `POST /api/GPT`
+- Payload shape:
+  ```json
+  {
+    "file": {
+      "path": "src/app/code.ts",
+      "language": "ts",
+      "content": "// file contents"
+    }
+  }
+  ```
+- Responses:
+  - Success: `{ "ok": true, "findings": [...], "summary": { file, counts } }`
+  - Failure: `{ "ok": false, "error": "message" }` with an HTTP status (400 for missing/invalid payload, otherwise propagated from the analyzer or 500).
+- Environment: requires `OPENAI_API_KEY` (and optionally `ANTHROPIC_API_KEY` for Claude in the shared analyzer module).
+
 ## GPT endpoint metrics
 
 Use the `npm run metrics` script to score the `/api/GPT` endpoint against the fixtures in `evaluations/fixtures.json`.
@@ -37,6 +55,21 @@ Environment overrides:
 - `GPT_EVAL_FIXTURES` - path to a custom fixtures JSON file.
 
 Add more scenarios by appending to `evaluations/fixtures.json` (each entry defines the file path, language, and expected findings).
+
+## GPT endpoint tests
+
+Targeted unit tests for the endpoint live in `src/app/unitTests/gpt-endpoint.test.ts`. They cover:
+- Missing payload returns HTTP 400 with an error body.
+- Successful analyzer output is returned unchanged with HTTP 200.
+- Analyzer `AnalysisError` status and message are propagated to the response.
+
+Run the tests (uses Node’s built-in `node:test` via tsx):
+
+```bash
+npx tsx --test src/app/unitTests/gpt-endpoint.test.ts
+```
+
+The test file sets dummy `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` values so it does not hit real APIs.
 
 ## Learn More
 
