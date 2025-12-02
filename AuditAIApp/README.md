@@ -20,6 +20,108 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## OpenAI GPT endpoint (API)
+
+- Path: `POST /api/GPT`
+- Payload shape:
+  ```json
+  {
+    "file": {
+      "path": "src/app/code.ts",
+      "language": "ts",
+      "content": "// file contents"
+    }
+  }
+  ```
+- Responses:
+  - Success: `{ "ok": true, "findings": [...], "summary": { file, counts } }`
+  - Failure: `{ "ok": false, "error": "message" }` with an HTTP status (400 for missing/invalid payload, otherwise propagated from the analyzer or 500).
+- Environment: requires `OPENAI_API_KEY` (and optionally `ANTHROPIC_API_KEY` for Claude in the shared analyzer module).
+
+## Claude endpoint (API)
+
+- Path: `POST /api/Claude`
+- Payload shape:
+  ```json
+  {
+    "file": {
+      "path": "src/app/code.ts",
+      "language": "ts",
+      "content": "// file contents"
+    }
+  }
+  ```
+- Responses:
+  - Success: `{ "ok": true, "findings": [...], "summary": { file, counts } }`
+  - Failure: `{ "ok": false, "error": "message" }` with an HTTP status (400 for missing/invalid payload, otherwise propagated from the analyzer or 500).
+- Environment: requires `ANTHROPIC_API_KEY` (and optionally `OPENAI_API_KEY` for GPT in the shared analyzer module).
+
+## GPT endpoint metrics
+
+Use the `npm run metrics` script to score the `/api/GPT` endpoint against the fixtures in `evaluations/fixtures.json`.
+
+1. Ensure `OPENAI_API_KEY` is set and run `npm run dev` so the endpoint is reachable on `http://localhost:3000`.
+2. In a separate terminal run `npm run metrics`. The script will:
+   - send each fixture file (see `src/app/codeFiles_With_Vuln_Examples/`) to `/api/GPT`,
+   - validate responses with the shared Zod schema,
+   - compare results with the expected findings, and
+   - print per-fixture precision/recall plus aggregate Precision/Recall/F1.
+
+Environment overrides:
+
+- `GPT_EVAL_ENDPOINT` - point to a deployed endpoint instead of `http://localhost:3000/api/GPT`.
+- `GPT_EVAL_FIXTURES` - path to a custom fixtures JSON file.
+
+Add more scenarios by appending to `evaluations/fixtures.json` (each entry defines the file path, language, and expected findings).
+
+## Claude endpoint metrics
+
+Use the `npm run metrics:claude` script to score the `/api/Claude` endpoint against the fixtures in `evaluations/fixtures.json`.
+
+1. Ensure `ANTHROPIC_API_KEY` is set and run `npm run dev` so the endpoint is reachable on `http://localhost:3000`.
+2. In a separate terminal run `npm run metrics:claude`. The script will:
+   - send each fixture file (see `src/app/codeFiles_With_Vuln_Examples/`) to `/api/Claude`,
+   - validate responses with the shared Zod schema,
+   - compare results with the expected findings, and
+   - print per-fixture precision/recall plus aggregate Precision/Recall/F1.
+
+Environment overrides:
+
+- `CLAUDE_EVAL_ENDPOINT` - point to a deployed endpoint instead of `http://localhost:3000/api/Claude`.
+- `CLAUDE_EVAL_FIXTURES` - path to a custom fixtures JSON file.
+
+Add more scenarios by appending to `evaluations/fixtures.json` (each entry defines the file path, language, and expected findings).
+
+## GPT endpoint tests
+
+Targeted unit tests for the endpoint live in `src/app/unitTests/gpt-endpoint.test.ts`. They cover:
+- Missing payload returns HTTP 400 with an error body.
+- Successful analyzer output is returned unchanged with HTTP 200.
+- Analyzer `AnalysisError` status and message are propagated to the response.
+
+Run the tests (uses Node’s built-in `node:test` via tsx):
+
+```bash
+npx tsx --test src/app/unitTests/gpt-endpoint.test.ts
+```
+
+The test file sets dummy `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` values so it does not hit real APIs.
+
+## Claude endpoint tests
+
+Targeted unit tests for the endpoint live in `src/app/unitTests/claude-endpoint.test.ts`. They cover:
+- Missing payload returns HTTP 400 with an error body.
+- Valid file payload is handled correctly.
+- Missing file path returns appropriate error response.
+
+Run the tests (uses Node's built-in `node:test` via tsx):
+
+```bash
+npx tsx --test src/app/unitTests/claude-endpoint.test.ts
+```
+
+The test file sets dummy `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` values so it does not hit real APIs.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

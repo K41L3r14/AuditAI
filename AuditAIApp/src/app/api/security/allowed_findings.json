@@ -28,7 +28,7 @@
       "owasp": "A05:2021-Security Misconfiguration",
       "severity": "High",
       "languages": ["ts", "js", "py"],
-      "description": "User-controlled path used to read/write files.",
+      "description": "User-controlled path used to read or write files on disk.",
       "hints": ["req.query.path", "req.body.path", "fs.readFile", "path.join"]
     },
     {
@@ -38,7 +38,7 @@
       "owasp": "A02:2021-Cryptographic Failures",
       "severity": "High",
       "languages": ["*"],
-      "description": "API keys, tokens, passwords in source.",
+      "description": "API keys, tokens, or passwords stored directly in source code.",
       "hints": ["apiKey", "secret", "token", "sk_live", "AKIA"]
     },
     {
@@ -50,6 +50,176 @@
       "languages": ["ts", "js"],
       "description": "Resource access missing authorization checks.",
       "hints": ["req.user", "role", "isAdmin", "where:{ id:req.query.id }"]
+    },
+
+    {
+      "id": "AUTH_BROKEN",
+      "title": "Broken Authentication",
+      "cwe": "CWE-287",
+      "owasp": "A07:2021-Identification and Authentication Failures",
+      "severity": "High",
+      "languages": ["ts", "js", "py", "java"],
+      "description": "Weak or missing authentication controls allow attackers to impersonate users.",
+      "hints": ["no password rate limiting", "JWT without expiration", "session not invalidated"]
+    },
+    {
+      "id": "MISCONFIG",
+      "title": "Security Misconfiguration",
+      "cwe": "CWE-16",
+      "owasp": "A05:2021-Security Misconfiguration",
+      "severity": "Medium",
+      "languages": ["*"],
+      "description": "Default configs, open admin panels, unnecessary services, or debug enabled in production.",
+      "hints": ["app.use(errorHandler()) in prod", "DEBUG=true", "open S3 bucket"]
+    },
+    {
+      "id": "UNVALIDATED_REDIRECT",
+      "title": "Unvalidated Redirects",
+      "cwe": "CWE-601",
+      "owasp": "A01:2021-Broken Access Control",
+      "severity": "Medium",
+      "languages": ["ts", "js", "py"],
+      "description": "User-controlled URL sent to redirect() without validation.",
+      "hints": ["res.redirect(req.query.url)"]
+    },
+    {
+      "id": "CSRF",
+      "title": "Cross-Site Request Forgery",
+      "cwe": "CWE-352",
+      "owasp": "A05:2021-Security Misconfiguration",
+      "severity": "Medium",
+      "languages": ["ts", "js"],
+      "description": "State-changing requests allowed without verifying user intent.",
+      "hints": ["no CSRF token", "cookie-based session without SameSite"]
+    },
+    {
+      "id": "LDAP_INJECTION",
+      "title": "LDAP Injection",
+      "cwe": "CWE-90",
+      "owasp": "A03:2021-Injection",
+      "severity": "High",
+      "languages": ["java", "py", "ts"],
+      "description": "User input sent into LDAP search filters without sanitization.",
+      "hints": ["(uid=${user})", "ldap.search(filter)"]
+    },
+    {
+      "id": "INSECURE_DESERIALIZATION",
+      "title": "Insecure Deserialization",
+      "cwe": "CWE-502",
+      "owasp": "A08:2021-Software and Data Integrity Failures",
+      "severity": "High",
+      "languages": ["js", "py", "java"],
+      "description": "Untrusted serialized data is deserialized and triggers malicious behavior.",
+      "hints": ["JSON.parse(req.body.data)", "pickle.load(user_input)"]
+    },
+    {
+      "id": "SSRF",
+      "title": "Server-Side Request Forgery",
+      "cwe": "CWE-918",
+      "owasp": "A10:2021-Server-Side Request Forgery",
+      "severity": "High",
+      "languages": ["ts", "js", "py"],
+      "description": "User controls URL of an outgoing server request.",
+      "hints": ["axios.get(req.query.url)", "fetch(userInput)"]
+    },
+    {
+      "id": "BROKEN_AUTHZ",
+      "title": "Broken Access Control",
+      "cwe": "CWE-285",
+      "owasp": "A01:2021-Broken Access Control",
+      "severity": "High",
+      "languages": ["ts", "js"],
+      "description": "Missing or incorrect permission checks on protected actions.",
+      "hints": ["if (req.user) return true", "role check missing", "update without owner check"]
+    },
+    {
+      "id": "RATE_LIMIT_MISSING",
+      "title": "Missing Rate Limiting",
+      "cwe": "CWE-770",
+      "owasp": "A04:2021-Insecure Design",
+      "severity": "Medium",
+      "languages": ["ts", "js", "py"],
+      "description": "Endpoints allow unlimited requests, enabling brute force attacks.",
+      "hints": ["no rate limiter middleware", "login endpoint"]
+    },
+    {
+      "id": "CRYPTO_BAD_RANDOM",
+      "title": "Use of Weak Randomness",
+      "cwe": "CWE-330",
+      "owasp": "A02:2021-Cryptographic Failures",
+      "severity": "Medium",
+      "languages": ["js", "py"],
+      "description": "Predictable random values used for tokens or secrets.",
+      "hints": ["Math.random()", "random.seed(1)"]
+    },
+    {
+      "id": "INSECURE_HTTP",
+      "title": "Insecure Transport (HTTP)",
+      "cwe": "CWE-319",
+      "owasp": "A02:2021-Cryptographic Failures",
+      "severity": "High",
+      "languages": ["ts", "js", "py"],
+      "description": "Sensitive data sent over HTTP instead of HTTPS.",
+      "hints": ["http://api.example.com/login", "axios.post('http://')"]
+    },
+    {
+      "id": "NO_INPUT_VALIDATION",
+      "title": "Missing Input Validation",
+      "cwe": "CWE-20",
+      "owasp": "A01:2021-Broken Access Control",
+      "severity": "Medium",
+      "languages": ["*"],
+      "description": "Endpoints accept unvalidated or untrusted user input.",
+      "hints": ["req.body", "req.query", "req.params", "schema missing"]
+    },
+    {
+      "id": "LOGGING_SENSITIVE",
+      "title": "Sensitive Data Logged",
+      "cwe": "CWE-532",
+      "owasp": "A09:2021-Security Logging and Monitoring Failures",
+      "severity": "Medium",
+      "languages": ["ts", "js", "py"],
+      "description": "Sensitive values accidentally written to logs.",
+      "hints": ["console.log(password)", "log(req.body)"]
+    },
+    {
+      "id": "UNSAFE_FILE_UPLOAD",
+      "title": "Unsafe File Upload",
+      "cwe": "CWE-434",
+      "owasp": "A08:2021-Software and Data Integrity Failures",
+      "severity": "High",
+      "languages": ["ts", "js"],
+      "description": "Uploaded files not validated for type, size, or content.",
+      "hints": ["multer", "no MIME check", "direct disk write"]
+    },
+    {
+      "id": "CODE_INJECTION",
+      "title": "Code Injection",
+      "cwe": "CWE-94",
+      "owasp": "A03:2021-Injection",
+      "severity": "High",
+      "languages": ["ts", "js", "py", "java"],
+      "description": "User-controlled data is executed as code at runtime through dynamic evaluators, script engines, template execution, VM execution, or interpreter commands.",
+      "hints": [
+        "eval(",
+        "new Function(",
+        "Function(",
+        "setImmediate(userInput)",
+        "setTimeout(userInput)",
+        "vm.runInContext",
+        "vm.runInNewContext",
+        "vm.compileFunction",
+        "templateEngine.render(userInput)",
+        "handlebars.compile(userInput)",
+        "ejs.render(userData)",
+        "python exec(",
+        "python eval(",
+        "subprocess.call(userInput)",
+        "Runtime.getRuntime().exec(",
+        "javax.script.ScriptEngine eval",
+        "command injection into interpreters"
+      ]
     }
+
   ]
 }
