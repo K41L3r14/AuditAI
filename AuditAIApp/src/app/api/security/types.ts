@@ -59,4 +59,4 @@ export type ComparisonSuccess = {
 
 export type ApiResponse = ApiSuccess | ApiError | ComparisonSuccess;
 
-export type ModelChoice = "OpenAI" | "Claude" | "CodeBert" | "Both";
+export type ModelChoice = "OpenAI" | "Claude" | "CodeBert" | "All";

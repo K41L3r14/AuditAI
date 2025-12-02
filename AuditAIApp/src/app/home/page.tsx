@@ -60,7 +60,7 @@ export default function Home() {
         model,
       };
 
-      if (model === "Both") {
+      if (model === "All") {
         const res = await fetch("/api/compare", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -187,7 +187,7 @@ return (
             <CardContent>
               <h2 className="section-title">Choose Model</h2>
               <div className="model-options">
-                {["OpenAI", "Claude", "CodeBert", "Both"].map((m) => (
+                {["OpenAI", "Claude", "CodeBert", "All"].map((m) => (
                   <label key={m} className="model-option">
                     <input
                       type="radio"
