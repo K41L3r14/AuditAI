@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CompareModel, ModelRunResult } from "../security/types";
-import { analyzeWithGPT, analyzeWithClaude } from "../security/analyzers";
+import { analyzeWithGPT, analyzeWithClaude, analyzeWithCodeBert } from "../security/analyzers";
 
 type AuditFile = { path: string; language: string; content: string };
 
-const MODEL_SEQUENCE: CompareModel[] = ["OpenAI", "Claude"];
+const MODEL_SEQUENCE: CompareModel[] = ["OpenAI", "Claude", "CodeBert"];
 
 export const runtime = "nodejs";
 
@@ -36,10 +36,20 @@ export async function POST(req: NextRequest) {
 async function runModel(model: CompareModel, file: AuditFile): Promise<ModelRunResult> {
   try {
     const logPrefix = `[Compare:${model}]`;
-    const data =
-      model === "Claude"
-        ? await analyzeWithClaude(file, { logPrefix })
-        : await analyzeWithGPT(file, { logPrefix });
+    let data;
+    switch (model) {
+      case "Claude":
+        data = await analyzeWithClaude(file, { logPrefix });
+        break;
+      case "CodeBert":
+        data = await analyzeWithCodeBert(file, { logPrefix });
+        break;
+      case "OpenAI":
+      default:
+        data = await analyzeWithGPT(file, { logPrefix });
+        break;
+    }
+
     return { ok: true, ...data };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

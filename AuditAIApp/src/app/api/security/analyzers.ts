@@ -5,6 +5,7 @@ import { selectFindings, loadRegistry } from "./registry";
 import { normalizeFindings } from "./helpers";
 import { ModelResponse, type TModelFinding } from "../GPT/model";
 import type { Finding, Summary } from "./types";
+import { InferenceClient } from "@huggingface/inference";  
 
 export type AuditFile = { path: string; language: string; content: string };
 export type AnalysisOptions = { logPrefix?: string };
@@ -437,6 +438,158 @@ export async function analyzeWithClaude(file: AuditFile, options: AnalysisOption
 
   return { findings: alignedFindings, summary };
 }
+
+const hfClient = new InferenceClient(process.env.HUGGINGFACE_API_KEY);  // 👈 NEW
+export async function analyzeWithCodeBert(
+  file: AuditFile,
+  options: AnalysisOptions = {}
+) {
+  if (!file || typeof file.content !== "string") {
+    throw new AnalysisError("Invalid file payload.", 400);
+  }
+
+  const { logPrefix = "[CodeBert]" } = options;
+  console.log(`${logPrefix} Starting analysis for`, file.path);
+  console.log(`${logPrefix} Language:`, file.language);
+  console.log(`${logPrefix} Content length:`, file.content.length);
+  console.log(`${logPrefix} HF key loaded?`, !!process.env.HUGGINGFACE_API_KEY);
+
+  const allowed = await selectFindings({ language: file.language, max: 6 });
+  console.log(`${logPrefix} Allowed findings loaded:`, allowed.length);
+
+  await loadRegistry();
+  console.log(`${logPrefix} Registry loaded.`);
+
+  let safeContent = file.content;
+  if (safeContent.length > 5000) {
+    safeContent = safeContent.slice(0, 5000) + "\n// ... [truncated]";
+    console.log(`${logPrefix} Code truncated to 5000 chars`);
+  }
+
+  const allowedForPrompt = [
+    ...allowed.map(({ id, title, cwe, owasp, severity, description }) => ({
+      id,
+      title,
+      cwe,
+      owasp,
+      severity,
+      description,
+    })),
+    FALLBACK_FINDING,
+  ];
+
+  const systemPrompt = [
+    "You are a security code auditor.",
+    "Only report findings whose 'id' exists in allowed_findings.",
+    "If nothing matches, return an empty 'findings' array.",
+    "Always include exact line numbers and a verbatim snippet.",
+    "Prefer high precision over recall. If unsure, lower confidence or skip.",
+    "Return ONLY a single JSON object.",
+    "The JSON MUST match this exact TypeScript type:",
+    "{",
+    '  "findings": {',
+    '    "id": string,',
+    '    "severity": "Low" | "Medium" | "High" | "Critical",',
+    '    "confidence": number,',
+    '    "cwe"?: string,',
+    '    "owasp"?: string,',
+    '    "evidence": { "lines": number[]; "snippet": string },',
+    '    "explanation": string,',
+    '    "fix": {',
+    '      "patch": { "line"?: number; "insert_before"?: string; "replace_with"?: string }[],',
+    '      "notes"?: string',
+    '    }',
+    "  }[],",
+    '  "summary": {',
+    '    "file": string,',
+    '    "counts": { "total": number, "high": number, "medium": number, "low": number }',
+    "  }",
+    "}",
+    ANALYSIS_GUIDANCE_TEXT,
+    OUTPUT_REQUIREMENTS_TEXT,
+  ].join(" ");
+
+  const userContent = {
+    task: "Analyze this code for security vulnerabilities and return findings in the specified JSON format.",
+    file: {
+      path: file.path,
+      language: file.language,
+      content: safeContent,
+    },
+    allowed_findings: allowedForPrompt,
+    output_contract: "ModelResponse JSON with { findings:[], summary:{...} }",
+    example_finding: EXAMPLE_FINDING,
+  };
+
+  console.log(`${logPrefix} Sending prompt to Hugging Face...`);
+
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    { role: "user" as const, content: JSON.stringify(userContent, null, 2) },
+  ];
+
+  const chatCompletion = await hfClient.chatCompletion({
+    // You can swap this to a real CodeBERT-style model if you want later
+    model: "meta-llama/Meta-Llama-3-8B-Instruct",
+    messages,
+    max_tokens: 800,
+    temperature: 0.1,
+  });
+
+  console.log(`${logPrefix} Hugging Face response received`);
+
+  const generatedText =
+    chatCompletion.choices?.[0]?.message?.content ?? "";
+  console.log(`${logPrefix} Generated text length:`, generatedText.length);
+
+  if (!generatedText) {
+    console.warn(`${logPrefix} No generated text from HF, returning empty findings.`);
+    return {
+      findings: [],
+      summary: {
+        file: file.path,
+        counts: { total: 0, high: 0, medium: 0, low: 0 },
+      },
+    };
+  }
+
+  console.log(`${logPrefix} Raw output (first 500 chars):`, generatedText.slice(0, 500));
+
+  let parsed: unknown;
+  try {
+    const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No JSON object found in model output.");
+    }
+    parsed = JSON.parse(jsonMatch[0]);
+    console.log(`${logPrefix} JSON extraction + parse successful.`);
+  } catch (parseErr) {
+    console.error(`${logPrefix} Failed to parse JSON.`, parseErr);
+    return {
+      findings: [],
+      summary: {
+        file: file.path,
+        counts: { total: 0, high: 0, medium: 0, low: 0 },
+      },
+    };
+  }
+
+  console.log(`${logPrefix} Normalizing model response...`);
+  const normalized = normalizeModelResponse(parsed, file.path);
+  console.log(`${logPrefix} Validating model response...`);
+  const validated = ModelResponse.parse(normalized);
+  console.log(`${logPrefix} Validation success! Realigning with source file...`);
+  const alignedFindings = normalizeFindings(file.content, validated.findings);
+  console.log(`${logPrefix} Returning normalized findings.`);
+
+  const summary = {
+    ...validated.summary,
+    file: file.path || validated.summary.file || "unknown",
+  };
+
+  return { findings: alignedFindings, summary };
+}
+
 
 type RawFinding = {
   id?: string;

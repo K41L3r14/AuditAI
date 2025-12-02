@@ -48,7 +48,7 @@ export type ApiError = {
   raw?: string;
 };
 
-export type CompareModel = "OpenAI" | "Claude";
+export type CompareModel = "OpenAI" | "Claude" | "CodeBert";
 
 export type ModelRunResult = ApiSuccess | ApiError;
 
@@ -59,4 +59,4 @@ export type ComparisonSuccess = {
 
 export type ApiResponse = ApiSuccess | ApiError | ComparisonSuccess;
 
-export type ModelChoice = "OpenAI" | "Claude" | "Other" | "Both";
+export type ModelChoice = "OpenAI" | "Claude" | "CodeBert" | "Both";

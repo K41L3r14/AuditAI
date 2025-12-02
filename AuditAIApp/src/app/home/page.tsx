@@ -9,7 +9,7 @@ import { CodePanel, SummaryPanel } from "./panels";
 import { exportReportPdf } from "./report";
 import "./home.css";
 
-const COMPARE_MODELS: CompareModel[] = ["OpenAI", "Claude"];
+const COMPARE_MODELS: CompareModel[] = ["OpenAI", "Claude", "CodeBert"];
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -20,6 +20,7 @@ export default function Home() {
   const [comparisonErrors, setComparisonErrors] = useState<Record<CompareModel, string | null> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   const hasComparison = comparisonData !== null;
   const hasResults = !!apiData || hasComparison;
@@ -74,10 +75,12 @@ export default function Home() {
           const normalizedData: Record<CompareModel, ApiSuccess | null> = {
             OpenAI: null,
             Claude: null,
+            CodeBert: null,
           };
           const perModelErrors: Record<CompareModel, string | null> = {
             OpenAI: null,
             Claude: null,
+            CodeBert: null,
           };
 
           COMPARE_MODELS.forEach((key) => {
@@ -94,8 +97,8 @@ export default function Home() {
 
           setComparisonData(normalizedData);
           setComparisonErrors(perModelErrors);
-          if (perModelErrors.OpenAI && perModelErrors.Claude) {
-            setError("Both models failed to analyze the file.");
+          if (perModelErrors.OpenAI && perModelErrors.Claude && perModelErrors.CodeBert) {
+            setError("All models failed to analyze the file.");
           } else {
             setError(null);
           }
@@ -105,7 +108,18 @@ export default function Home() {
         return;
       }
 
-      const endpoint = model === "Claude" ? "/api/Claude" : "/api/GPT";
+      let endpoint: string;
+      switch (model) {
+        case "Claude":
+          endpoint = "/api/Claude";
+          break;
+        case "CodeBert":
+          endpoint = "/api/CodeBert";
+          break;
+        default:
+          endpoint = "/api/GPT";
+      }
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,122 +156,138 @@ export default function Home() {
 
   const exportDisabled = !apiData || isLoading || comparisonModeActive;
 
-  return (
-    <div className="security-page">
-      <aside className="security-sidebar">
-        <Card>
-          <CardContent>
-            <h2 className="section-title">Upload Code</h2>
-            <label className="upload-box">
-              <Upload />
-              <p className="upload-text">
-                {file ? `Selected: ${file.name}` : "Click to choose a file"}
-              </p>
-              <input type="file" className="upload-input" onChange={handleFileChange} />
-            </label>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent>
-            <h2 className="section-title">Choose Model</h2>
-            <div className="model-options">
-              {["OpenAI", "Claude", "Both", "Other"].map((m) => (
-                <label key={m} className="model-option">
-                  <input
-                    type="radio"
-                    name="model"
-                    value={m}
-                    checked={model === (m as ModelChoice)}
-                    onChange={() => setModel(m as ModelChoice)}
-                  />
-                  <span>{m}</span>
-                </label>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Button onClick={handleAnalyze} disabled={isLoading}>
-          {isLoading ? "Analyzing..." : "Analyze Code"}
+return (
+  <div className="security-page">
+    <div className="security-sidebar-column">
+      <div className="sidebar-top-row">
+        <Button
+          onClick={() => setSidebarVisible((v) => !v)}
+          className="sidebar-toggle-button"
+        >
+          {sidebarVisible ? "»" : "«"}
         </Button>
+      </div>
 
-        {error && (
+      {sidebarVisible && (
+        <aside className="security-sidebar">
           <Card>
             <CardContent>
-              <div className="error-panel">{error}</div>
+              <h2 className="section-title">Upload Code</h2>
+              <label className="upload-box">
+                <Upload />
+                <p className="upload-text">
+                  {file ? `Selected: ${file.name}` : "Click to choose a file"}
+                </p>
+              <input type="file" className="upload-input" onChange={handleFileChange} />
+              </label>
             </CardContent>
           </Card>
-        )}
-      </aside>
 
-      <main className="security-main">
-        <Card>
-          <CardContent className="header-card-content">
-            <div className="header-text">
-              <h1 className="page-title">
-                {comparisonModeActive ? "Model Comparison" : "Security Assistant"}
-              </h1>
-              {comparisonModeActive && (
-                <p className="page-subtitle">Comparing OpenAI and Claude on the same file.</p>
-              )}
-            </div>
+          <Card>
+            <CardContent>
+              <h2 className="section-title">Choose Model</h2>
+              <div className="model-options">
+                {["OpenAI", "Claude", "CodeBert", "Both"].map((m) => (
+                  <label key={m} className="model-option">
+                    <input
+                      type="radio"
+                      name="model"
+                      value={m}
+                      checked={model === (m as ModelChoice)}
+                      onChange={() => setModel(m as ModelChoice)}
+                    />
+                    <span>{m}</span>
+                  </label>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button onClick={handleAnalyze} disabled={isLoading}>
+            {isLoading ? "Analyzing..." : "Analyze Code"}
+          </Button>
+
+          {error && (
+            <Card>
+              <CardContent>
+                <div className="error-panel">{error}</div>
+              </CardContent>
+            </Card>
+          )}
+        </aside>
+      )}
+    </div>
+    <main className="security-main">
+      <Card>
+        <CardContent className="header-card-content">
+          <div className="header-text">
+            <h1 className="page-title">
+              {comparisonModeActive ? "Model Comparison" : "AuditAI Code Security Analysis"}
+            </h1>
+            {comparisonModeActive && (
+              <p className="page-subtitle">
+                Comparing OpenAI, Claude, and CodeBert on the same file.
+              </p>
+            )}
+          </div>
+          <div className="header-actions">
             <Button onClick={handleExport} disabled={exportDisabled}>
               Export PDF
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {comparisonData ? (
-          <div className="comparison-container">
-            {COMPARE_MODELS.map((modelKey) => {
-              const data = comparisonData[modelKey];
-              const modelError = comparisonErrors?.[modelKey] ?? null;
-              return (
-                <div key={modelKey} className="comparison-column">
-                  <Card>
-                    <CardContent>
-                      <div className="comparison-header">
-                        <h2 className="section-title">{modelKey}</h2>
+      {comparisonData ? (
+        <div className="comparison-container">
+          {COMPARE_MODELS.map((modelKey) => {
+            const data = comparisonData[modelKey];
+            const modelError = comparisonErrors?.[modelKey] ?? null;
+            return (
+              <div key={modelKey} className="comparison-column">
+                <Card>
+                  <CardContent>
+                    <div className="comparison-header">
+                      <h2 className="section-title">{modelKey}</h2>
                         {modelError && <p className="comparison-error">{modelError}</p>}
-                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                {data ? (
+                  <div className="results-grid">
+                      <CodePanel fileName={file?.name} fileContent={fileContent} apiData={data} />
+                    <SummaryPanel apiData={data} fileName={file?.name} />
+                  </div>
+                ) : (
+                  <Card className="empty-card">
+                    <CardContent className="empty-card-content">
+                      <FileCode />
+                      <p className="empty-text">
+                        {modelError ?? "No findings reported for this model."}
+                      </p>
                     </CardContent>
                   </Card>
-                  {data ? (
-                    <div className="results-grid">
-                      <CodePanel fileName={file?.name} fileContent={fileContent} apiData={data} />
-                      <SummaryPanel apiData={data} fileName={file?.name} />
-                    </div>
-                  ) : (
-                    <Card className="empty-card">
-                      <CardContent className="empty-card-content">
-                        <FileCode />
-                        <p className="empty-text">
-                          {modelError ?? "No findings reported for this model."}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : hasResults && apiData ? (
-          <div className="results-grid">
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : hasResults && apiData ? (
+        <div className="results-grid">
             <CodePanel fileName={file?.name} fileContent={fileContent} apiData={apiData} />
-            <SummaryPanel apiData={apiData} fileName={file?.name} />
-          </div>
-        ) : (
-          <Card className="empty-card">
-            <CardContent className="empty-card-content">
-              <FileCode />
-              <p className="empty-text">
-                Upload a file and click &quot;Analyze Code&quot; to see results.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </main>
-    </div>
+          <SummaryPanel apiData={apiData} fileName={file?.name} />
+        </div>
+      ) : (
+        <Card className="empty-card">
+          <CardContent className="empty-card-content">
+            <FileCode />
+            <p className="empty-text">
+              Upload a file and click &quot;Analyze Code&quot; to see results.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </main>
+  </div>
   );
 }

@@ -15,16 +15,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
-<<<<<<< HEAD
     "@huggingface/inference": "^4.13.3",
     "next": "^16.0.3",
-=======
     "@fortawesome/fontawesome-svg-core": "^7.1.0",
     "@fortawesome/free-solid-svg-icons": "^7.1.0",
     "@fortawesome/react-fontawesome": "^3.1.0",
     "jspdf": "^3.0.4",
-    "next": "15.5.6",
->>>>>>> 68f791c77b429d80b001a33bfa6ebf92ce2bcf26
     "openai": "^6.5.0",
     "pg": "^8.16.3",
     "pnpm": "^10.18.3",
