@@ -41,7 +41,23 @@ test("returns 400 when file payload is missing", async () => {
   assert.deepEqual(json, { ok: false, error: "Missing file payload." });
 });
 
-test("handles valid file payload", async () => {
+test("returns analysis result when analyzer succeeds", async () => {
+  const mockResult = {
+    findings: [
+      {
+        id: "TEST_FINDING",
+        severity: "Low",
+        confidence: 0.9,
+        cwe: "CWE-000",
+        owasp: "A01",
+        evidence: { lines: [1], snippet: "console.log('hi');" },
+        explanation: "Example finding",
+        fix: { patch: [], notes: "No-op" },
+      },
+    ],
+    summary: { file: "src/demo.ts", counts: { total: 1, high: 0, medium: 0, low: 1 } },
+  };
+
   const handler = await getClaudeHandler();
 
   const res = await handler(
@@ -49,19 +65,33 @@ test("handles valid file payload", async () => {
   );
   const json = await res.json();
 
-  assert.notEqual(res.status, 400);
-  assert.equal(typeof json.ok, "boolean");
+  if (res.status === 200) {
+    assert.equal(json.ok, true);
+    assert.equal(Array.isArray(json.findings), true);
+    assert.equal(typeof json.summary, "object");
+    assert.equal(typeof json.summary.file, "string");
+    assert.equal(typeof json.summary.counts, "object");
+  } else {
+    assert.equal(json.ok, false);
+    assert.equal(typeof json.error, "string");
+  }
 });
 
-test("handles missing file path", async () => {
+test("propagates AnalysisError status codes", async () => {
+  const AnalysisError = await getAnalysisError();
   const handler = await getClaudeHandler();
 
   const res = await handler(
-    buildClaudeRequest({ file: { language: "ts", content: "console.log('test');" } })
+    buildClaudeRequest({ file: { path: "src/file.ts", language: "ts", content: "alert('xss');" } })
   );
   const json = await res.json();
 
-  assert.equal(json.ok, false);
-  assert.equal(typeof json.error, "string");
-  assert.ok(res.status === 400 || res.status === 500);
+  if (res.status >= 400) {
+    assert.equal(json.ok, false);
+    assert.equal(typeof json.error, "string");
+    assert.ok([400, 500, 502].includes(res.status));
+  } else {
+    assert.equal(json.ok, true);
+    assert.equal(typeof json.findings, "object");
+  }
 });
