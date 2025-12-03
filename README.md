@@ -20,6 +20,41 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## ⭐ Obtaining CodeBERT API Keys
+
+1. **Create a Hugging Face account**  
+   You can sign up using GitHub, Google, or any email:  
+   https://huggingface.co
+
+2. **Go to your Access Tokens page**  
+   ![Access Tokens](image.png)
+
+3. **Create a new token**  
+   ![Create Token](image-1.png)
+
+   - Set the **token type** to **Read** (this is all you need).  
+   - Give your token a **name**.  
+   - After creating it, **copy the token value**.
+
+4. **Add the token to your `local.env` file**  
+   ```bash
+   HUGGINGFACE_API_KEY=your_token_here
+   
+5. **Install required packages**  
+   Run this command in your project:
+
+   ```bash
+   npm install
+
+## OpenAI and Claude API Keys
+
+Add these to your `local.env` file
+
+ ```json
+OPENAI_API_KEY=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
+ANTHROPIC_API_KEY=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
+  ```
+
 ## OpenAI GPT endpoint (API)
 
 - Path: `POST /api/GPT`
@@ -136,3 +171,4 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
