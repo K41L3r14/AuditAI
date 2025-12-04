@@ -46,15 +46,6 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
    ```bash
    npm install
 
-## OpenAI and Claude API Keys
-
-Add these to your `local.env` file
-
- ```json
-OPENAI_API_KEY=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
-ANTHROPIC_API_KEY=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
-  ```
-
 ## OpenAI GPT endpoint (API)
 
 - Path: `POST /api/GPT`
